@@ -133,3 +133,11 @@ resource "aws_lb_listener" "http" {
     target_group_arn = aws_lb_target_group.app_tg.arn
   }
 }
+
+# Register ec2 instances with the ALB by attaching them to the ALB group
+resource "aws_lb_target_group_attachment" "ec2" {
+  count            = length(module.public_ec2.instance_ids)
+  target_group_arn = aws_lb_target_group.app_tg.arn
+  target_id        = module.public_ec2.instance_ids[count.index]
+  port             = 80
+}
