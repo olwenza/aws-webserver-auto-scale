@@ -89,6 +89,7 @@ module "public_ec2" {
   instance_type  = var.ec2_type       # declared in root variables.tf
   instance_count = 3
   key_name       = var.ec2_key_name 
+  alb_sg_id      = aws_security_group.alb_sg.id #http access restricted to alb sg
 }
 
 # Application load balancer - main

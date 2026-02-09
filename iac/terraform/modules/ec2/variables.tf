@@ -31,3 +31,8 @@ variable "key_name" {
   description = "EC2 key pair name for SSH access"
   type        = string
 }
+
+variable "alb_sg_id" {
+  description = "Id/s of the ALB SG"
+  type = string
+}

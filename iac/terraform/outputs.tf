@@ -21,3 +21,7 @@ output "ec2_public_ips" {
 output "ec2_instance_ids" {
   value = module.public_ec2.instance_ids
 }
+
+output "alb_dns_name" {
+  value = aws_lb.app.dns_name
+}
