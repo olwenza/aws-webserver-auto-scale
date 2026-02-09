@@ -29,9 +29,7 @@ module "vpc" {
   private_subnets = var.private_subnets
   azs             = local.azs
 }
-
-
-# Add this below the VPC module call
+ 
 resource "aws_security_group" "public_ec2_sg" {
   name        = "${var.vpc_name}-public-ec2-sg"
   description = "Allow SSH access to public EC2 instances"
@@ -57,6 +55,30 @@ resource "aws_security_group" "public_ec2_sg" {
   }
 }
 
+resource "aws_security_group" "alb_sg" {
+  name        = "${var.vpc_name}-alb-sg"
+  description = "Allow HTTP traffic to ALB"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-alb-sg"
+  }
+}
+
 # EC2 instances
 module "public_ec2" {
   source         = "./modules/ec2"
@@ -67,4 +89,17 @@ module "public_ec2" {
   instance_type  = var.ec2_type       # declared in root variables.tf
   instance_count = 3
   key_name       = var.ec2_key_name 
+}
+
+# Application load balancer - main
+resource "aws_lb" "app" {
+  name               = "${var.vpc_name}-alb"
+  load_balancer_type = "application"
+  internal           = false
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = module.vpc.public_subnet_ids   #Use all available subnets
+
+  tags = {
+    Name = "${var.vpc_name}-alb"
+  }
 }
