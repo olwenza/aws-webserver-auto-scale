@@ -85,11 +85,9 @@ resource "aws_security_group" "alb_sg" {
 module "public_ec2" {
   source         = "./modules/ec2"
   name           = "startup-public"
-  vpc_id         = module.vpc.vpc_id
   subnet_ids     = module.vpc.public_subnet_ids
   ami            = var.ec2_ami        # declared in root variables.tf
   instance_type  = var.ec2_type       # declared in root variables.tf
-  instance_count = 3
   key_name       = var.ec2_key_name 
   alb_sg_id      = aws_security_group.alb_sg.id #http access restricted to alb sg
 }
