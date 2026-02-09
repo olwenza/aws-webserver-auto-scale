@@ -18,7 +18,9 @@ data "aws_availability_zones" "available" {
 }
 
 locals {
-  azs = slice(data.aws_availability_zones.available.names, 0, 3)
+  public_azs = slice(data.aws_availability_zones.available.names, 0, 3)
+  private_azs = slice(data.aws_availability_zones.available.names, 0, 2)
+
 }
 
 module "vpc" {
@@ -27,7 +29,7 @@ module "vpc" {
   vpc_cidr        = var.vpc_cidr
   public_subnets  = var.public_subnets
   private_subnets = var.private_subnets
-  azs             = local.azs
+  azs             = local.public_azs
 }
  
 resource "aws_security_group" "public_ec2_sg" {

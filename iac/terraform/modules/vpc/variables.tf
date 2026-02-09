@@ -8,6 +8,11 @@ variable "vpc_cidr" {
 
 variable "public_subnets" {
   type = list(string)
+
+  validation {
+    condition     = length(var.public_subnets) >= 3
+    error_message = "At least 3 public subnets are required."
+  }
 }
 
 variable "private_subnets" {
