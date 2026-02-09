@@ -18,7 +18,9 @@ data "aws_availability_zones" "available" {
 }
 
 locals {
-  azs = slice(data.aws_availability_zones.available.names, 0, 3)
+  public_azs = slice(data.aws_availability_zones.available.names, 0, 3)
+  private_azs = slice(data.aws_availability_zones.available.names, 0, 2)
+
 }
 
 module "vpc" {
@@ -27,11 +29,9 @@ module "vpc" {
   vpc_cidr        = var.vpc_cidr
   public_subnets  = var.public_subnets
   private_subnets = var.private_subnets
-  azs             = local.azs
+  azs             = local.public_azs
 }
-
-
-# Add this below the VPC module call
+ 
 resource "aws_security_group" "public_ec2_sg" {
   name        = "${var.vpc_name}-public-ec2-sg"
   description = "Allow SSH access to public EC2 instances"
@@ -57,6 +57,30 @@ resource "aws_security_group" "public_ec2_sg" {
   }
 }
 
+resource "aws_security_group" "alb_sg" {
+  name        = "${var.vpc_name}-alb-sg"
+  description = "Allow HTTP traffic to ALB"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-alb-sg"
+  }
+}
+
 # EC2 instances
 module "public_ec2" {
   source         = "./modules/ec2"
@@ -67,4 +91,56 @@ module "public_ec2" {
   instance_type  = var.ec2_type       # declared in root variables.tf
   instance_count = 3
   key_name       = var.ec2_key_name 
+  alb_sg_id      = aws_security_group.alb_sg.id #http access restricted to alb sg
+}
+
+# Application load balancer - main
+resource "aws_lb" "app" {
+  name               = "${var.vpc_name}-alb"
+  load_balancer_type = "application"
+  internal           = false
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = module.vpc.public_subnet_ids   #Use all available subnets
+
+  tags = {
+    Name = "${var.vpc_name}-alb"
+  }
+}
+
+# Target group - logically group resource e.g ec2 that receive traffice fro the ALB via ALB listener
+resource "aws_lb_target_group" "app_tg" {
+  name     = "${var.vpc_name}-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = module.vpc.vpc_id
+
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
+
+# Load balancer listeners - listen to traffic from ALB distribute to target group members
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app_tg.arn
+  }
+}
+
+# Register ec2 instances with the ALB by attaching them to the ALB group
+resource "aws_lb_target_group_attachment" "ec2" {
+  count            = length(module.public_ec2.instance_ids)
+  target_group_arn = aws_lb_target_group.app_tg.arn
+  target_id        = module.public_ec2.instance_ids[count.index]
+  port             = 80
 }
