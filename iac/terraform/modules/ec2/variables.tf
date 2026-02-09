@@ -13,9 +13,8 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "subnet_id" {
-  description = "Subnet ID where EC2 instances will be launched"
-  type        = string
+variable "subnet_ids" {
+  type = list(string)
 }
 
 variable "instance_count" {
@@ -25,5 +24,10 @@ variable "instance_count" {
 
 variable "name" {
   description = "Name prefix for EC2 instances"
+  type        = string
+}
+
+variable "key_name" {
+  description = "EC2 key pair name for SSH access"
   type        = string
 }

@@ -32,3 +32,4 @@ terraform.rc
 *.swn
 *.sublime-workspace
 *.vscode/
+.tmp/

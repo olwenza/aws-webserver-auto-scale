@@ -6,7 +6,7 @@ AWS Webserver Auto Scaling
 
 # 📝 Overview
 
-Setup scales aws webapp using ALB and auto scaling
+Setup scales aws webapp using ALB and auto scaling. The base branch 'origin/1-add-folder-structure' is a VPC with 3 subnets in 3 different availability zones. Each subnet has an ec2 instance with apach server installed.
 
 # 🚀 Run application
 
@@ -27,6 +27,36 @@ terraform plan
 ```
 terraform apply
 ```
+
+4. Create a key to ssh to the ec2 server
+
+```
+aws ec2 create-key-pair \
+  --key-name aws-ec2-key \
+  --query 'KeyMaterial' \
+  --output text > aws-ec2-key.pem
+```
+
+5. Lock down key permission
+
+```
+chmod 400 aws-ec2-key.pem
+```
+
+6. Verify key was created and is there
+
+```
+aws ec2 describe-key-pairs --query "KeyPairs[].KeyName"
+
+```
+
+7- Use the following command to ssh into a ec2 instance
+
+```
+ssh -i aws-ec2-key.pem ec2-user@<PUBLIC_IP>
+```
+
+ssh -i aws-ec2-key.pem ec2-user@http://34.205.87.161
 
 # ⏬ Download
 

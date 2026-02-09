@@ -13,7 +13,13 @@ provider "aws" {
   region = var.aws_region
 }
 
-data "aws_availability_zones" "available" {}
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+locals {
+  azs = slice(data.aws_availability_zones.available.names, 0, 3)
+}
 
 module "vpc" {
   source          = "./modules/vpc"
@@ -21,8 +27,9 @@ module "vpc" {
   vpc_cidr        = var.vpc_cidr
   public_subnets  = var.public_subnets
   private_subnets = var.private_subnets
-  azs             = data.aws_availability_zones.available.names
+  azs             = local.azs
 }
+
 
 # Add this below the VPC module call
 resource "aws_security_group" "public_ec2_sg" {
@@ -55,8 +62,9 @@ module "public_ec2" {
   source         = "./modules/ec2"
   name           = "startup-public"
   vpc_id         = module.vpc.vpc_id
-  subnet_id      = module.vpc.public_subnet_ids[0]
+  subnet_ids     = module.vpc.public_subnet_ids
   ami            = var.ec2_ami        # declared in root variables.tf
   instance_type  = var.ec2_type       # declared in root variables.tf
-  instance_count = 2
+  instance_count = 3
+  key_name       = var.ec2_key_name 
 }
