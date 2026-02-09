@@ -103,3 +103,21 @@ resource "aws_lb" "app" {
     Name = "${var.vpc_name}-alb"
   }
 }
+
+# Target group - logically group resource e.g ec2 that receive traffice fro the ALB via ALB listener
+resource "aws_lb_target_group" "app_tg" {
+  name     = "${var.vpc_name}-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = module.vpc.vpc_id
+
+  health_check {
+    path                = "/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+}
