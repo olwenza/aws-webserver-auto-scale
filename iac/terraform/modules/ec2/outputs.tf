@@ -1,7 +1,7 @@
-output "public_ips" {
-  value = aws_instance.servers[*].public_ip
+output "aws_launch_template_id" {
+  value = aws_launch_template.this.id
 }
 
-output "instance_ids" {
-  value = aws_instance.servers[*].id
+output "target_group_arn" {
+  value = aws_lb_target_group.this.arn
 }
