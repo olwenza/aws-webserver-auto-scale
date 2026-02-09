@@ -1,0 +1,16 @@
+#!/bin/bash#!/bin/bash
+
+#Delete all terraform managed resources
+terraform destroy
+
+#Cleanup local terraform state files
+rm -rf .terraform terraform.tfstate terraform.tfstate.backup
+
+# Remove terraform lock file
+rm -f .terraform.lock.hcl
+
+# Check of any leftover aws resources
+# aws ec2 describe-instances --query "Reservations[].Instances[].{ID:InstanceId,State:State.Name,Name:Tags[?Key=='Name'].Value|[0]}"
+# aws s3 ls
+# aws rds describe-db-instances
+# aws cloudfront list-distributions

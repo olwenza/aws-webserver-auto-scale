@@ -1,0 +1,10 @@
+#!/bin/bash
+
+#initialize - best done manually
+# terraform init
+
+#plan
+terraform plan
+
+#apply - best done manually
+#terraform apply
