@@ -92,6 +92,7 @@ module "public_ec2" {
   key_name       = var.ec2_key_name 
   alb_sg_id      = aws_security_group.alb_sg.id #http access restricted to alb sg
   ec2_sg_ids     = [aws_security_group.public_ec2_sg.id]
+  target_group_arn = aws_lb_target_group.app_tg.arn   # Pass root TG ARN
 }
 
 # Application load balancer - main
@@ -120,20 +121,6 @@ resource "aws_lb_target_group" "app_tg" {
     matcher             = "200"
     interval            = 30
     timeout             = 5
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-  }
-}
-
-resource "aws_lb_target_group" "this" {
-  name     = "${var.vpc_name}-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id  = module.vpc.vpc_id
-
-  health_check {
-    path                = "/"
-    interval            = 30
     healthy_threshold   = 2
     unhealthy_threshold = 2
   }

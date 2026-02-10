@@ -6,22 +6,77 @@ resource "aws_launch_template" "this" {
   key_name      = var.key_name
   vpc_security_group_ids = concat(var.ec2_sg_ids, [var.alb_sg_id])
   
-  user_data = base64encode(<<-EOF
+  user_data = base64encode(<<-USERDATA
     #!/bin/bash
+    set -e
+
+    # -----------------------------
+    # System updates
+    # -----------------------------
     yum update -y
-    yum install -y httpd
-    systemctl start httpd
-    systemctl enable httpd
 
-    INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-    AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+    # -----------------------------
+    # Install packages
+    # -----------------------------
+    yum install -y git nginx curl
 
-    cat <<HTML > /var/www/html/index.html
-    <h1>Apache running 🚀</h1>
-    <p>Instance: $INSTANCE_ID</p>
-    <p>AZ: $AZ</p>
-    HTML
-    EOF
+    # -----------------------------
+    # Install Node.js 18 (Vite compatible)
+    # -----------------------------
+    curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+    yum install -y nodejs
+
+    node -v
+    npm -v
+
+    # -----------------------------
+    # Clone React app
+    # -----------------------------
+    APP_DIR=/opt/landing-page
+
+    rm -rf $APP_DIR
+    git clone https://github.com/olwenza/landing-page.git $APP_DIR
+    cd $APP_DIR
+
+    # -----------------------------
+    # Install deps & build
+    # -----------------------------
+    npm install
+    npm run build
+
+    # -----------------------------
+    # Configure Nginx (SPA support)
+    # -----------------------------
+    cat <<'NGINXEOF' > /etc/nginx/conf.d/react.conf
+    server {
+        listen 80;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+    NGINXEOF
+
+    # Remove default config
+    rm -f /etc/nginx/conf.d/default.conf
+
+    # -----------------------------
+    # Deploy build files
+    # -----------------------------
+    rm -rf /usr/share/nginx/html/*
+    cp -r dist/* /usr/share/nginx/html/
+    chown -R nginx:nginx /usr/share/nginx/html
+
+    # -----------------------------
+    # Enable & start Nginx
+    # -----------------------------
+    systemctl enable nginx
+    systemctl restart nginx
+    USERDATA
   )
 
   tag_specifications {
@@ -32,31 +87,15 @@ resource "aws_launch_template" "this" {
   }
 }
 
-resource "aws_lb_target_group" "this" {
-  name     = "${var.name}-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id  = var.vpc_id
-
-  health_check {
-    path                = "/"
-    interval            = 30
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-  }
-}
-
 resource "aws_autoscaling_group" "this" {
   name                = "${var.name}-asg"
   desired_capacity    = 3
   min_size            = 3
   max_size            = 6
 
-  vpc_zone_identifier = var.subnet_ids   # ← spread across subnets/AZs
+  vpc_zone_identifier = var.subnet_ids
 
-  target_group_arns = [
-    aws_lb_target_group.this.arn
-  ]
+  target_group_arns = [var.target_group_arn]  # <-- use the new variable
 
   health_check_type         = "ELB"
   health_check_grace_period = 300
@@ -72,3 +111,4 @@ resource "aws_autoscaling_group" "this" {
     propagate_at_launch = true
   }
 }
+

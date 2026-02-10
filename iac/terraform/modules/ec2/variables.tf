@@ -37,3 +37,8 @@ variable "ec2_sg_ids" {
   description = "List of security groups for EC2 instances"
   type        = list(string)
 }
+
+variable "target_group_arn" {
+  description = "ARN of the ALB target group"
+  type        = string
+}
