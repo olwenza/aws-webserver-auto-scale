@@ -1,5 +1,20 @@
+variable "name" {
+  description = "Name prefix for EC2 instances and resources"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "VPC ID where the EC2 instances will be deployed"
+  type        = string
+}
+
+variable "subnet_ids" {
+  description = "List of subnet IDs where EC2 instances will be deployed"
+  type        = list(string)
+}
+
 variable "ami" {
-  description = "AMI ID for EC2 instances"
+  description = "AMI ID to use for EC2 instances"
   type        = string
 }
 
@@ -8,31 +23,22 @@ variable "instance_type" {
   type        = string
 }
 
-variable "vpc_id" {
-  description = "VPC ID"
-  type        = string
-}
-
-variable "subnet_ids" {
-  type = list(string)
-}
-
-variable "instance_count" {
-  description = "Number of EC2 instances"
-  type        = number
-}
-
-variable "name" {
-  description = "Name prefix for EC2 instances"
-  type        = string
-}
-
 variable "key_name" {
-  description = "EC2 key pair name for SSH access"
+  description = "Key pair name for SSH access"
   type        = string
 }
 
 variable "alb_sg_id" {
-  description = "Id/s of the ALB SG"
-  type = string
+  description = "Security group ID of the ALB (for HTTP access)"
+  type        = string
+}
+
+variable "ec2_sg_ids" {
+  description = "List of security groups for EC2 instances"
+  type        = list(string)
+}
+
+variable "target_group_arn" {
+  description = "ARN of the ALB target group"
+  type        = string
 }

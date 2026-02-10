@@ -1,74 +1,114 @@
-resource "aws_security_group" "sg" {
-  name        = "${var.name}-sg"
-  description = "Allow SSH and HTTP"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    security_groups = [var.alb_sg_id] # Allow http traffic from only ALB sg
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${var.name}-sg"
-  }
-}
-
-resource "aws_instance" "servers" {
-  count                        = var.instance_count
-  ami                          = var.ami
-  instance_type                = var.instance_type
-  subnet_id                    = var.subnet_ids[count.index % length(var.subnet_ids)]
-  key_name                     = var.key_name   # 👈 REQUIRED FOR SSH
-  associate_public_ip_address  = true
-  vpc_security_group_ids       = [aws_security_group.sg.id]
-
-  user_data = <<-EOF
+# We don't need instances for auto scaling. Auto Scaling Group auto creates & destroy instance
+resource "aws_launch_template" "this" {
+  name_prefix   = "${var.name}-lt-"
+  image_id      = var.ami
+  instance_type = var.instance_type
+  key_name      = var.key_name
+  vpc_security_group_ids = concat(var.ec2_sg_ids, [var.alb_sg_id])
+  
+  user_data = base64encode(<<-USERDATA
     #!/bin/bash
+    set -e
+
+    # -----------------------------
+    # System updates
+    # -----------------------------
     yum update -y
-    yum install -y httpd
-    systemctl start httpd
-    systemctl enable httpd
 
-    INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-    AZ=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+    # -----------------------------
+    # Install packages
+    # -----------------------------
+    yum install -y git nginx curl
 
-    cat <<HTML > /var/www/html/index.html
-    <html>
-      <head>
-        <title>Ivan's Dev Ground</title>
-        <style>
-          body { font-family: Arial; background: #f8fafc; text-align: center; padding-top: 60px; }
-          h1 { color: #4f46e5; }
-        </style>
-      </head>
-      <body>
-        <h1>Apache is running 🚀</h1>
-        <p><strong>Instance:</strong> $INSTANCE_ID</p>
-        <p><strong>AZ:</strong> $AZ</p>
-      </body>
-    </html>
-    HTML
-  EOF
+    # -----------------------------
+    # Install Node.js 18 (Vite compatible)
+    # -----------------------------
+    curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+    yum install -y nodejs
 
-  tags = {
-    Name = "${var.name}-${count.index + 1}"
+    node -v
+    npm -v
+
+    # -----------------------------
+    # Clone React app
+    # -----------------------------
+    APP_DIR=/opt/landing-page
+
+    rm -rf $APP_DIR
+    git clone https://github.com/olwenza/landing-page.git $APP_DIR
+    cd $APP_DIR
+
+    # -----------------------------
+    # Install deps & build
+    # -----------------------------
+    npm install
+    npm run build
+
+    # -----------------------------
+    # Configure Nginx (SPA support)
+    # -----------------------------
+    cat <<'NGINXEOF' > /etc/nginx/conf.d/react.conf
+    server {
+        listen 80;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+    NGINXEOF
+
+    # Remove default config
+    rm -f /etc/nginx/conf.d/default.conf
+
+    # -----------------------------
+    # Deploy build files
+    # -----------------------------
+    rm -rf /usr/share/nginx/html/*
+    cp -r dist/* /usr/share/nginx/html/
+    chown -R nginx:nginx /usr/share/nginx/html
+
+    # -----------------------------
+    # Enable & start Nginx
+    # -----------------------------
+    systemctl enable nginx
+    systemctl restart nginx
+    USERDATA
+  )
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = var.name
+    }
   }
 }
+
+resource "aws_autoscaling_group" "this" {
+  name                = "${var.name}-asg"
+  desired_capacity    = 3
+  min_size            = 3
+  max_size            = 6
+
+  vpc_zone_identifier = var.subnet_ids
+
+  target_group_arns = [var.target_group_arn]  # <-- use the new variable
+
+  health_check_type         = "ELB"
+  health_check_grace_period = 300
+
+  launch_template {
+    id      = aws_launch_template.this.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = var.name
+    propagate_at_launch = true
+  }
+}
+

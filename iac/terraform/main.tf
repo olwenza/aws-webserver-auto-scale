@@ -89,9 +89,10 @@ module "public_ec2" {
   subnet_ids     = module.vpc.public_subnet_ids
   ami            = var.ec2_ami        # declared in root variables.tf
   instance_type  = var.ec2_type       # declared in root variables.tf
-  instance_count = 3
   key_name       = var.ec2_key_name 
   alb_sg_id      = aws_security_group.alb_sg.id #http access restricted to alb sg
+  ec2_sg_ids     = [aws_security_group.public_ec2_sg.id]
+  target_group_arn = aws_lb_target_group.app_tg.arn   # Pass root TG ARN
 }
 
 # Application load balancer - main
@@ -135,12 +136,4 @@ resource "aws_lb_listener" "http" {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app_tg.arn
   }
-}
-
-# Register ec2 instances with the ALB by attaching them to the ALB group
-resource "aws_lb_target_group_attachment" "ec2" {
-  count            = length(module.public_ec2.instance_ids)
-  target_group_arn = aws_lb_target_group.app_tg.arn
-  target_id        = module.public_ec2.instance_ids[count.index]
-  port             = 80
 }

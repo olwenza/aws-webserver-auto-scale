@@ -1,7 +1,3 @@
-output "public_ips" {
-  value = aws_instance.servers[*].public_ip
-}
-
-output "instance_ids" {
-  value = aws_instance.servers[*].id
+output "aws_launch_template_id" {
+  value = aws_launch_template.this.id
 }
